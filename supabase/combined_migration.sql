@@ -471,7 +471,15 @@ CREATE POLICY "Labs can upload lab reports" ON storage.objects FOR INSERT TO aut
 CREATE POLICY "Users can access their own health records" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'health_records' AND (auth.uid()::text = (storage.foldername(name))[1] OR public.is_admin()));
 CREATE POLICY "Users can upload health records" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'health_records' AND auth.uid()::text = (storage.foldername(name))[1]);
 
--- 9. PRODUCTION SETUP COMPLETE (ZERO SEED DATA)
+-- 9. DESIGNATED ADMIN ROLE GRANT & SETUP
+DO $$
+BEGIN
+    UPDATE public.profiles
+    SET role = 'admin'
+    WHERE id IN (
+        SELECT id FROM auth.users WHERE LOWER(email) = 'satyam31sk@gmail.com'
+    );
+END $$;
 -- The database schema, security policies, triggers, and storage buckets are fully configured.
 -- Real patients, doctors, pharmacies, and labs will sign up and populate all tables dynamically.
 
