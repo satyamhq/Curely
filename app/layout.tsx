@@ -13,7 +13,6 @@ export const metadata: Metadata = {
   description:
     "Describe your symptoms and let Curely's AI match you with the right doctor. Book appointments, consult online, order medicines, and schedule lab tests — all in one app.",
   keywords: [
-    'online doctor appointment booking',
     'AI symptom checker',
     'online medicine delivery',
     'lab test booking online',
