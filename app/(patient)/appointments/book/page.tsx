@@ -171,7 +171,7 @@ function BookAppointmentContent() {
                   Payment Summary
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600">
-                  <Sparkles className="h-3 w-3" /> One-Click Mock Pay
+                  <Sparkles className="h-3 w-3" /> Express Payment
                 </span>
               </div>
               <div className="flex items-center justify-between text-sm">
