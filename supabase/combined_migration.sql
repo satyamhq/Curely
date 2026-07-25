@@ -454,6 +454,23 @@ CREATE POLICY "Users can upload health records" ON storage.objects FOR INSERT TO
 
 -- 9. BASELINE CATALOG SEED DATA
 
+-- Insert seed users into auth.users first to satisfy foreign key constraint public.profiles.id -> auth.users.id
+INSERT INTO auth.users (
+  id, instance_id, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at, role, aud
+)
+VALUES
+  ('11111111-1111-4111-a111-111111111111', '00000000-0000-0000-0000-000000000000', 'doctor.rajesh@curely.health', '$2a$10$abcdefghijklmnopqrstuvwxyz012345', NOW(), '{"provider":"email","providers":["email"]}', '{"role":"doctor","full_name":"Dr. Rajesh Sharma"}', NOW(), NOW(), 'authenticated', 'authenticated'),
+  ('22222222-2222-4222-a222-222222222222', '00000000-0000-0000-0000-000000000000', 'doctor.priya@curely.health', '$2a$10$abcdefghijklmnopqrstuvwxyz012345', NOW(), '{"provider":"email","providers":["email"]}', '{"role":"doctor","full_name":"Dr. Priya Ananth"}', NOW(), NOW(), 'authenticated', 'authenticated'),
+  ('33333333-3333-4333-a333-333333333333', '00000000-0000-0000-0000-000000000000', 'doctor.vikram@curely.health', '$2a$10$abcdefghijklmnopqrstuvwxyz012345', NOW(), '{"provider":"email","providers":["email"]}', '{"role":"doctor","full_name":"Dr. Vikram Sethi"}', NOW(), NOW(), 'authenticated', 'authenticated'),
+  ('44444444-4444-4444-a444-444444444444', '00000000-0000-0000-0000-000000000000', 'apollo.mumbai@curely.health', '$2a$10$abcdefghijklmnopqrstuvwxyz012345', NOW(), '{"provider":"email","providers":["email"]}', '{"role":"pharmacy","full_name":"Apollo Pharmacy Main Branch"}', NOW(), NOW(), 'authenticated', 'authenticated'),
+  ('55555555-5555-4555-a555-555555555555', '00000000-0000-0000-0000-000000000000', 'medplus.bengaluru@curely.health', '$2a$10$abcdefghijklmnopqrstuvwxyz012345', NOW(), '{"provider":"email","providers":["email"]}', '{"role":"pharmacy","full_name":"MedPlus Wellness Express"}', NOW(), NOW(), 'authenticated', 'authenticated'),
+  ('66666666-6666-4666-a666-666666666666', '00000000-0000-0000-0000-000000000000', 'lalpath.delhi@curely.health', '$2a$10$abcdefghijklmnopqrstuvwxyz012345', NOW(), '{"provider":"email","providers":["email"]}', '{"role":"lab","full_name":"Dr. Lal PathLabs Central"}', NOW(), NOW(), 'authenticated', 'authenticated'),
+  ('77777777-7777-4777-a777-777777777777', '00000000-0000-0000-0000-000000000000', 'metropolis.mumbai@curely.health', '$2a$10$abcdefghijklmnopqrstuvwxyz012345', NOW(), '{"provider":"email","providers":["email"]}', '{"role":"lab","full_name":"Metropolis Healthcare Lab"}', NOW(), NOW(), 'authenticated', 'authenticated'),
+  ('88888888-8888-4888-a888-888888888888', '00000000-0000-0000-0000-000000000000', 'amit.patel@curely.health', '$2a$10$abcdefghijklmnopqrstuvwxyz012345', NOW(), '{"provider":"email","providers":["email"]}', '{"role":"patient","full_name":"Amit Patel"}', NOW(), NOW(), 'authenticated', 'authenticated'),
+  ('99999999-9999-4999-a999-999999999999', '00000000-0000-0000-0000-000000000000', 'sunita.rao@curely.health', '$2a$10$abcdefghijklmnopqrstuvwxyz012345', NOW(), '{"provider":"email","providers":["email"]}', '{"role":"patient","full_name":"Sunita Rao"}', NOW(), NOW(), 'authenticated', 'authenticated')
+ON CONFLICT (id) DO NOTHING;
+
 -- Baseline Doctor Profiles
 INSERT INTO public.profiles (id, role, full_name, avatar_url, phone, city)
 VALUES
