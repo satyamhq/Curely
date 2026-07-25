@@ -1,88 +1,48 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { MobileNav } from '@/components/layout/MobileNav'
 import { DoctorCard } from '@/components/shared/DoctorCard'
 import { SearchBar } from '@/components/shared/SearchBar'
 import { FilterPanel } from '@/components/shared/FilterPanel'
-import { Stethoscope, UserX } from 'lucide-react'
-
-const MOCK_DOCTORS = [
-  {
-    id: 'doc-1',
-    profile_id: 'prof-1',
-    speciality: 'General Physician',
-    experience_years: 12,
-    fee: 500,
-    bio: 'Senior General Physician specializing in preventive health care, fever management, and lifestyle disorders.',
-    qualifications: 'MBBS, MD (Internal Medicine)',
-    verified: true,
-    rating: 4.9,
-    review_count: 128,
-    created_at: new Date().toISOString(),
-    profile: {
-      full_name: 'Dr. Rajesh Sharma',
-      avatar_url: null,
-      city: 'Mumbai',
-    },
-  },
-  {
-    id: 'doc-2',
-    profile_id: 'prof-2',
-    speciality: 'Cardiologist',
-    experience_years: 18,
-    fee: 1200,
-    bio: 'Consultant Interventional Cardiologist with extensive expertise in heart health and blood pressure control.',
-    qualifications: 'MBBS, DM (Cardiology)',
-    verified: true,
-    rating: 5.0,
-    review_count: 94,
-    created_at: new Date().toISOString(),
-    profile: {
-      full_name: 'Dr. Priya Ananth',
-      avatar_url: null,
-      city: 'Bengaluru',
-    },
-  },
-  {
-    id: 'doc-3',
-    profile_id: 'prof-3',
-    speciality: 'Dermatologist',
-    experience_years: 9,
-    fee: 750,
-    bio: 'Specialist in clinical dermatology, skin rejuvenation, acne treatment, and hair care therapies.',
-    qualifications: 'MBBS, DVD, MD (Dermatology)',
-    verified: true,
-    rating: 4.8,
-    review_count: 67,
-    created_at: new Date().toISOString(),
-    profile: {
-      full_name: 'Dr. Vikram Sethi',
-      avatar_url: null,
-      city: 'Delhi NCR',
-    },
-  },
-]
+import { Stethoscope, UserX, Loader2 } from 'lucide-react'
+import { getDoctors, type DoctorRow } from '@/lib/db/doctors'
 
 export function DoctorsClientView() {
   const [search, setSearch] = useState('')
   const [selectedSpeciality, setSelectedSpeciality] = useState('')
   const [maxFee, setMaxFee] = useState(2000)
   const [minExperience, setMinExperience] = useState(0)
+  const [doctors, setDoctors] = useState<DoctorRow[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const filteredDoctors = MOCK_DOCTORS.filter((doc) => {
+  useEffect(() => {
+    async function fetchLiveDoctors() {
+      setLoading(true)
+      const data = await getDoctors({
+        speciality: selectedSpeciality,
+        maxFee: maxFee,
+      })
+      setDoctors(data)
+      setLoading(false)
+    }
+    fetchLiveDoctors()
+  }, [selectedSpeciality, maxFee])
+
+  const filteredDoctors = doctors.filter((doc) => {
+    const fullName = doc.profiles?.full_name ?? ''
+    const city = doc.profiles?.city ?? ''
+
     const matchesSearch =
-      doc.profile.full_name.toLowerCase().includes(search.toLowerCase()) ||
+      fullName.toLowerCase().includes(search.toLowerCase()) ||
       doc.speciality.toLowerCase().includes(search.toLowerCase()) ||
-      (doc.profile.city && doc.profile.city.toLowerCase().includes(search.toLowerCase()))
+      city.toLowerCase().includes(search.toLowerCase())
 
-    const matchesSpeciality = selectedSpeciality ? doc.speciality === selectedSpeciality : true
-    const matchesFee = doc.fee <= maxFee
     const matchesExp = doc.experience_years >= minExperience
 
-    return matchesSearch && matchesSpeciality && matchesFee && matchesExp
+    return matchesSearch && matchesExp
   })
 
   return (
@@ -116,14 +76,19 @@ export function DoctorsClientView() {
           </aside>
 
           <section className="lg:col-span-3">
-            {filteredDoctors.length === 0 ? (
+            {loading ? (
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-card p-12 text-center space-y-3">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Loading verified doctors from database...</p>
+              </div>
+            ) : filteredDoctors.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card p-12 text-center space-y-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
                   <UserX className="h-6 w-6" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-lg">No doctors found</h3>
-                  <p className="text-sm text-muted-foreground">Try relaxing your search terms or filters to view more providers.</p>
+                  <p className="text-sm text-muted-foreground">No verified doctors match your search filters in the database.</p>
                 </div>
               </div>
             ) : (

@@ -1,25 +1,45 @@
 import Link from 'next/link'
 import { Calendar, MapPin, ShieldCheck, Star } from 'lucide-react'
-import type { DoctorWithProfile } from '@/types/doctor'
 import { formatCurrency } from '@/lib/utils'
 
 interface DoctorCardProps {
-  doctor: DoctorWithProfile
+  doctor: {
+    id: string
+    speciality: string
+    experience_years: number
+    fee: number
+    bio?: string | null
+    verified: boolean
+    rating?: number
+    profiles?: {
+      full_name: string | null
+      avatar_url: string | null
+      city: string | null
+    } | null
+    profile?: {
+      full_name: string
+      avatar_url: string | null
+      city: string | null
+    } | null
+  }
 }
 
 export function DoctorCard({ doctor }: DoctorCardProps) {
+  const fullName = doctor.profiles?.full_name || doctor.profile?.full_name || 'Dr. Medical Specialist'
+  const city = doctor.profiles?.city || doctor.profile?.city || 'Online Consultation'
+
   return (
     <div className="group relative flex flex-col justify-between rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:border-primary/50 hover:shadow-md">
       <div>
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-lg">
-              {doctor.profile.full_name.charAt(0)}
+              {fullName.charAt(0)}
             </div>
             <div>
               <div className="flex items-center gap-1.5">
                 <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                  {doctor.profile.full_name}
+                  {fullName}
                 </h3>
                 {doctor.verified && (
                   <span title="Verified Provider">
@@ -43,7 +63,7 @@ export function DoctorCard({ doctor }: DoctorCardProps) {
         <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
             <MapPin className="h-3.5 w-3.5" />
-            <span>{doctor.profile.city || 'Online Consultation'}</span>
+            <span>{city}</span>
           </div>
           <div>{doctor.experience_years} yrs exp</div>
         </div>
