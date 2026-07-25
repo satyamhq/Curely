@@ -52,7 +52,11 @@ function SignupForm() {
       })
 
       if (error) {
-        setAuthError(error.message)
+        if (error.message.toLowerCase().includes('rate limit')) {
+          setAuthError('Supabase email rate limit exceeded. To allow instant unlimited signups without hitting rate limits, please toggle off "Confirm email" in your Supabase Dashboard under Authentication -> Providers -> Email.')
+        } else {
+          setAuthError(error.message)
+        }
         setLoading(false)
         return
       }
