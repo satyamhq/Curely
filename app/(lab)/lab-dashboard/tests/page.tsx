@@ -1,31 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ProviderLayoutShell } from '@/components/layout/ProviderLayoutShell'
-import { FlaskConical, Plus, Trash2 } from 'lucide-react'
+import { FlaskConical, Plus, Trash2, Loader2, AlertCircle } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
-
-const MOCK_TESTS = [
-  {
-    id: 'test-1',
-    name: 'Complete Blood Count (CBC)',
-    price: 350,
-    sample_type: 'Blood',
-    turnaround_hours: 12,
-    description: 'Evaluates overall health and detects infection or anemia.',
-  },
-  {
-    id: 'test-2',
-    name: 'Thyroid Profile Total (T3, T4, TSH)',
-    price: 650,
-    sample_type: 'Blood',
-    turnaround_hours: 24,
-    description: 'Assesses thyroid gland function and metabolic health.',
-  },
-]
+import { createClient } from '@/utils/supabase/client'
 
 export default function LabTestsPage() {
-  const [tests, setTests] = useState(MOCK_TESTS)
+  const [tests, setTests] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [labId, setLabId] = useState<string | null>(null)
+
   const [showAdd, setShowAdd] = useState(false)
   const [newTest, setNewTest] = useState({
     name: '',
@@ -35,17 +22,96 @@ export default function LabTestsPage() {
     description: '',
   })
 
-  const handleAddTest = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newTest.name) return
+  async function loadLabTestsCatalog() {
+    try {
+      setLoading(true)
+      setError(null)
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setLoading(false)
+        return
+      }
 
-    setTests([...tests, { id: `test-${Date.now()}`, ...newTest }])
-    setNewTest({ name: '', price: 500, sample_type: 'Blood', turnaround_hours: 24, description: '' })
-    setShowAdd(false)
+      const { data: labRecord, error: labErr } = await supabase
+        .from('labs')
+        .select('id')
+        .eq('profile_id', user.id)
+        .maybeSingle()
+
+      if (labErr) throw labErr
+      if (!labRecord) {
+        setTests([])
+        setLoading(false)
+        return
+      }
+
+      setLabId((labRecord as any).id)
+
+      const { data, error: testErr } = await supabase
+        .from('lab_tests')
+        .select('*')
+        .eq('lab_id', (labRecord as any).id)
+        .order('created_at', { ascending: false })
+
+      if (testErr) throw testErr
+      setTests(data || [])
+    } catch (err: any) {
+      console.error('Error loading lab tests:', err)
+      setError(err.message || 'Failed to load diagnostic test catalog.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleDelete = (id: string) => {
-    setTests(tests.filter((t) => t.id !== id))
+  useEffect(() => {
+    loadLabTestsCatalog()
+  }, [])
+
+  const handleAddTest = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newTest.name || !labId) return
+
+    try {
+      setSubmitting(true)
+      const supabase = createClient()
+      const { error: insertErr } = await (supabase.from('lab_tests') as any)
+        .insert({
+          lab_id: labId,
+          name: newTest.name,
+          price: newTest.price,
+          sample_type: newTest.sample_type,
+          turnaround_hours: newTest.turnaround_hours,
+          description: newTest.description || null,
+        })
+
+      if (insertErr) throw insertErr
+
+      setNewTest({ name: '', price: 500, sample_type: 'Blood', turnaround_hours: 24, description: '' })
+      setShowAdd(false)
+      loadLabTestsCatalog()
+    } catch (err: any) {
+      console.error('Error adding lab test:', err)
+      alert(err.message || 'Failed to add test to catalog.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      const supabase = createClient()
+      const { error: delErr } = await supabase
+        .from('lab_tests')
+        .delete()
+        .eq('id', id)
+
+      if (delErr) throw delErr
+      setTests((prev) => prev.filter((t) => t.id !== id))
+    } catch (err: any) {
+      console.error('Error deleting lab test:', err)
+      alert(err.message || 'Failed to delete test.')
+    }
   }
 
   return (
@@ -126,41 +192,60 @@ export default function LabTestsPage() {
               </button>
               <button
                 type="submit"
-                className="rounded-xl bg-primary px-5 py-2 text-xs font-semibold text-primary-foreground shadow hover:bg-primary/90"
+                disabled={submitting}
+                className="rounded-xl bg-primary px-5 py-2 text-xs font-semibold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-1.5"
               >
-                Save Test
+                {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Save Test
               </button>
             </div>
           </form>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          {tests.map((test) => (
-            <div key={test.id} className="flex flex-col justify-between rounded-2xl border border-border bg-card p-5 shadow-sm space-y-3">
-              <div>
-                <div className="flex items-start justify-between">
-                  <h3 className="font-semibold text-sm text-foreground">{test.name}</h3>
-                  <span className="rounded bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold text-blue-600">
-                    {test.sample_type}
-                  </span>
+        {loading ? (
+          <div className="flex flex-col items-center justify-center p-12 space-y-3 rounded-2xl border border-border bg-card">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <p className="text-sm font-medium text-muted-foreground">Loading test catalog...</p>
+          </div>
+        ) : error ? (
+          <div className="flex items-center gap-3 p-6 rounded-2xl border border-destructive/30 bg-destructive/10 text-destructive text-sm font-semibold">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        ) : tests.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center text-sm text-muted-foreground">
+            No diagnostic tests offered by your lab center yet.
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {tests.map((test) => (
+              <div key={test.id} className="flex flex-col justify-between rounded-2xl border border-border bg-card p-5 shadow-sm space-y-3">
+                <div>
+                  <div className="flex items-start justify-between">
+                    <h3 className="font-semibold text-sm text-foreground">{test.name}</h3>
+                    <span className="rounded bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold text-blue-600">
+                      {test.sample_type || 'Blood'}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">{test.description || 'Comprehensive test.'}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Turnaround: {test.turnaround_hours || 24} hours</p>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">{test.description}</p>
-                <p className="text-[10px] text-muted-foreground mt-1">Turnaround: {test.turnaround_hours} hours</p>
-              </div>
 
-              <div className="flex items-center justify-between border-t border-border pt-3 text-xs">
-                <span className="font-bold text-foreground">{formatCurrency(test.price)}</span>
-                <button
-                  onClick={() => handleDelete(test.id)}
-                  className="rounded p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <div className="flex items-center justify-between border-t border-border pt-3 text-xs">
+                  <span className="font-bold text-foreground">{formatCurrency(test.price)}</span>
+                  <button
+                    onClick={() => handleDelete(test.id)}
+                    className="rounded p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    title="Delete Test"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </ProviderLayoutShell>
   )
 }
+

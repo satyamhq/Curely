@@ -15,12 +15,14 @@ export async function POST(req: Request) {
       data: { user },
     } = await supabase.auth.getUser()
 
-    const patientId = user?.id || 'mock-patient-id'
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required to book lab tests.' }, { status: 401 })
+    }
 
     const { data: newBooking, error } = await supabase
       .from('lab_bookings')
       .insert({
-        patient_id: patientId,
+        patient_id: user.id,
         lab_id: labId,
         test_id: testId,
         slot_time: slotTime || new Date().toISOString(),
@@ -31,15 +33,7 @@ export async function POST(req: Request) {
       .single()
 
     if (error) {
-      return NextResponse.json({
-        id: `lb-${Date.now().toString().slice(-4)}`,
-        patient_id: patientId,
-        lab_id: labId,
-        test_id: testId,
-        slot_time: slotTime || new Date().toISOString(),
-        status: 'pending',
-        amount: amount || 350,
-      })
+      return NextResponse.json({ error: error.message || 'Failed to book lab test in database.' }, { status: 400 })
     }
 
     return NextResponse.json(newBooking)
@@ -51,3 +45,4 @@ export async function POST(req: Request) {
     )
   }
 }
+

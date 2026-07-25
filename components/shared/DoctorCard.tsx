@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Calendar, MapPin, ShieldCheck, Star } from 'lucide-react'
+import { Calendar, Clock, MapPin, ShieldCheck, Star } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 
 interface DoctorCardProps {
@@ -10,7 +10,9 @@ interface DoctorCardProps {
     fee: number
     bio?: string | null
     verified: boolean
-    rating?: number
+    rating?: number | null
+    review_count?: number
+    availability_text?: string | null
     profiles?: {
       full_name: string | null
       avatar_url: string | null
@@ -27,6 +29,7 @@ interface DoctorCardProps {
 export function DoctorCard({ doctor }: DoctorCardProps) {
   const fullName = doctor.profiles?.full_name || doctor.profile?.full_name || 'Dr. Medical Specialist'
   const city = doctor.profiles?.city || doctor.profile?.city || 'Online Consultation'
+  const hasRating = typeof doctor.rating === 'number' && doctor.rating > 0
 
   return (
     <div className="group relative flex flex-col justify-between rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:border-primary/50 hover:shadow-md">
@@ -52,7 +55,18 @@ export function DoctorCard({ doctor }: DoctorCardProps) {
           </div>
           <div className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-600">
             <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
-            <span>{doctor.rating ?? 4.9}</span>
+            <span>
+              {hasRating ? (
+                <>
+                  {doctor.rating?.toFixed(1)}{' '}
+                  {typeof doctor.review_count === 'number' && (
+                    <span className="text-[10px] font-normal text-muted-foreground">({doctor.review_count})</span>
+                  )}
+                </>
+              ) : (
+                'New'
+              )}
+            </span>
           </div>
         </div>
 
@@ -66,6 +80,12 @@ export function DoctorCard({ doctor }: DoctorCardProps) {
             <span>{city}</span>
           </div>
           <div>{doctor.experience_years} yrs exp</div>
+          {doctor.availability_text && (
+            <div className="flex items-center gap-1 text-emerald-600 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-full text-[10px]">
+              <Clock className="h-3 w-3" />
+              <span>{doctor.availability_text}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -85,3 +105,4 @@ export function DoctorCard({ doctor }: DoctorCardProps) {
     </div>
   )
 }
+

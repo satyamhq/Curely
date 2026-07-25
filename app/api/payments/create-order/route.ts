@@ -15,13 +15,15 @@ export async function POST(req: Request) {
       data: { user },
     } = await supabase.auth.getUser()
 
-    const userId = user?.id || 'mock-user-id'
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required to initiate payments.' }, { status: 401 })
+    }
 
     // Insert pending payment audit record
-    const { data: paymentRecord } = await supabase
+    const { data: paymentRecord, error: insertErr } = await supabase
       .from('payments')
       .insert({
-        user_id: userId,
+        user_id: user.id,
         related_type: relatedType,
         related_id: relatedId,
         amount,
@@ -31,14 +33,18 @@ export async function POST(req: Request) {
       .select()
       .single()
 
+    if (insertErr) {
+      return NextResponse.json({ error: insertErr.message || 'Failed to initialize payment record.' }, { status: 400 })
+    }
+
     const razorpayOrderId = `order_${Date.now()}`
 
     return NextResponse.json({
       orderId: razorpayOrderId,
       amount: amount * 100, // In paise
       currency: currency || 'INR',
-      keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_mock_key',
-      paymentId: (paymentRecord as { id?: string } | null)?.id || `pay_${Date.now()}`,
+      keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_key',
+      paymentId: (paymentRecord as any).id,
     })
   } catch (error: any) {
     console.error('Payment Order Error:', error)
@@ -48,3 +54,4 @@ export async function POST(req: Request) {
     )
   }
 }
+

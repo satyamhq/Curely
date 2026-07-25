@@ -25,29 +25,29 @@ export async function POST(req: Request) {
       data: { user },
     } = await supabase.auth.getUser()
 
-    const patientId = user?.id || 'mock-patient-id'
-    const pharmacyId = items[0]?.medicine?.pharmacy_id || 'pharm-1'
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required to place medicine orders.' }, { status: 401 })
+    }
+
+    const pharmacyId = items[0]?.medicine?.pharmacy_id
+
+    if (!pharmacyId) {
+      return NextResponse.json({ error: 'Invalid pharmacy ID for medicine items.' }, { status: 400 })
+    }
 
     const { data: newOrder, error } = await (supabase.from('orders') as any)
       .insert({
-        patient_id: patientId,
+        patient_id: user.id,
         pharmacy_id: pharmacyId,
         status: 'pending',
         total: calculatedTotal,
-        prescription_url: prescriptionUrl,
+        prescription_url: prescriptionUrl || null,
       })
       .select()
       .single()
 
     if (error) {
-      // Fallback for unseeded dev database
-      return NextResponse.json({
-        id: `ord-${Date.now().toString().slice(-4)}`,
-        patient_id: patientId,
-        pharmacy_id: pharmacyId,
-        status: 'pending',
-        total: calculatedTotal,
-      })
+      return NextResponse.json({ error: error.message || 'Failed to place order in database.' }, { status: 400 })
     }
 
     return NextResponse.json(newOrder)
@@ -59,3 +59,4 @@ export async function POST(req: Request) {
     )
   }
 }
+

@@ -31,9 +31,15 @@ export function LabCard({ lab }: LabCardProps) {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-600">
-            <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
-            <span>{lab.rating ?? 4.9}</span>
+          <div className="flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-600">
+            {typeof lab.rating === 'number' && lab.rating > 0 ? (
+              <>
+                <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+                <span>{lab.rating.toFixed(1)}</span>
+              </>
+            ) : (
+              <span>NABL Accredited</span>
+            )}
           </div>
         </div>
       </div>

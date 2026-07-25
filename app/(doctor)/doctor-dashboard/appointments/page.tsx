@@ -1,43 +1,100 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ProviderLayoutShell } from '@/components/layout/ProviderLayoutShell'
-import { Calendar, CheckCircle2, Clock, User, XCircle, FileText } from 'lucide-react'
+import { Calendar, CheckCircle2, Clock, User, XCircle, FileText, Loader2, AlertCircle } from 'lucide-react'
 import { formatCurrency, formatDate, formatTime } from '@/lib/utils'
-
-const MOCK_DOCTOR_APPOINTMENTS = [
-  {
-    id: 'apt-d1',
-    patient_name: 'Amit Patel',
-    patient_age: 32,
-    patient_phone: '9876543210',
-    slot_time: new Date(Date.now() + 86400000).toISOString(),
-    status: 'pending',
-    mode: 'online',
-    amount: 500,
-    symptoms: 'Dry cough and mild fever for 2 days.',
-  },
-  {
-    id: 'apt-d2',
-    patient_name: 'Sunita Rao',
-    patient_age: 45,
-    patient_phone: '9812345678',
-    slot_time: new Date(Date.now() - 86400000 * 2).toISOString(),
-    status: 'completed',
-    mode: 'online',
-    amount: 500,
-    symptoms: 'Blood sugar checkup consultation.',
-  },
-]
+import { createClient } from '@/utils/supabase/client'
 
 export default function DoctorAppointmentsPage() {
-  const [appointments, setAppointments] = useState(MOCK_DOCTOR_APPOINTMENTS)
+  const [appointments, setAppointments] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'pending' | 'confirmed' | 'completed'>('pending')
 
-  const handleUpdateStatus = (id: string, status: string) => {
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status } : a))
-    )
+  async function loadDoctorAppointments() {
+    try {
+      setLoading(true)
+      setError(null)
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setLoading(false)
+        return
+      }
+
+      // Find Doctor ID for profile
+      const { data: docRecord, error: docErr } = await supabase
+        .from('doctors')
+        .select('id')
+        .eq('profile_id', user.id)
+        .maybeSingle()
+
+      if (docErr) throw docErr
+      if (!docRecord) {
+        setAppointments([])
+        setLoading(false)
+        return
+      }
+
+      const { data, error: fetchErr } = await supabase
+        .from('appointments')
+        .select(`
+          id,
+          slot_time,
+          status,
+          mode,
+          amount,
+          created_at,
+          patient:profiles!appointments_patient_id_fkey (
+            full_name,
+            phone
+          )
+        `)
+        .eq('doctor_id', (docRecord as any).id)
+        .order('slot_time', { ascending: false })
+
+      if (fetchErr) throw fetchErr
+
+      const formatted = (data || []).map((apt: any) => ({
+        id: apt.id,
+        patient_name: apt.patient?.full_name || 'Patient User',
+        patient_phone: apt.patient?.phone || 'N/A',
+        slot_time: apt.slot_time,
+        status: apt.status,
+        mode: apt.mode,
+        amount: apt.amount,
+        symptoms: 'General consultation request.',
+      }))
+      setAppointments(formatted)
+
+    } catch (err: any) {
+      console.error('Error loading doctor appointments:', err)
+      setError(err.message || 'Failed to load doctor appointments.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadDoctorAppointments()
+  }, [])
+
+  const handleUpdateStatus = async (id: string, status: string) => {
+    try {
+      const supabase = createClient()
+      const { error: updateErr } = await (supabase.from('appointments') as any)
+        .update({ status: status as any })
+        .eq('id', id)
+
+      if (updateErr) throw updateErr
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status } : a))
+      )
+    } catch (err: any) {
+      console.error('Error updating appointment status:', err)
+      alert(err.message || 'Failed to update status.')
+    }
   }
 
   const filtered = appointments.filter((a) => {
@@ -73,8 +130,17 @@ export default function DoctorAppointmentsPage() {
           ))}
         </div>
 
-        {/* Appointments List */}
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center p-12 space-y-3 rounded-2xl border border-border bg-card">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm font-medium text-muted-foreground">Loading appointment queue...</p>
+          </div>
+        ) : error ? (
+          <div className="flex items-center gap-3 p-6 rounded-2xl border border-destructive/30 bg-destructive/10 text-destructive text-sm font-semibold">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center text-sm text-muted-foreground">
             No {activeTab} appointments found.
           </div>
@@ -90,7 +156,7 @@ export default function DoctorAppointmentsPage() {
                     <div>
                       <h3 className="font-bold text-foreground text-base">{apt.patient_name}</h3>
                       <p className="text-xs text-muted-foreground">
-                        {apt.patient_age} yrs • Phone: {apt.patient_phone}
+                        Phone: {apt.patient_phone}
                       </p>
                     </div>
                   </div>
@@ -143,3 +209,4 @@ export default function DoctorAppointmentsPage() {
     </ProviderLayoutShell>
   )
 }
+

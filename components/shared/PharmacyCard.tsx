@@ -31,9 +31,15 @@ export function PharmacyCard({ pharmacy }: PharmacyCardProps) {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-600">
-            <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
-            <span>{pharmacy.rating ?? 4.8}</span>
+          <div className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600">
+            {typeof pharmacy.rating === 'number' && pharmacy.rating > 0 ? (
+              <>
+                <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+                <span>{pharmacy.rating.toFixed(1)}</span>
+              </>
+            ) : (
+              <span>Licensed</span>
+            )}
           </div>
         </div>
       </div>

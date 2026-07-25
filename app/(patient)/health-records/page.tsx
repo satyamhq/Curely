@@ -1,57 +1,102 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PatientLayoutShell } from '@/components/layout/PatientLayoutShell'
-import { FileText, Plus, ShieldCheck, Upload, Trash2 } from 'lucide-react'
+import { FileText, Plus, ShieldCheck, Upload, Trash2, Loader2, AlertCircle } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-
-const MOCK_HEALTH_RECORDS = [
-  {
-    id: 'hr-1',
-    title: 'General Blood Panel & HbA1c Report',
-    type: 'Lab Report',
-    uploaded_by: 'Metropolis Diagnostics',
-    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-    file_url: '#',
-  },
-  {
-    id: 'hr-2',
-    title: 'Dr. Rajesh Sharma Consultation Prescription',
-    type: 'Prescription',
-    uploaded_by: 'Dr. Rajesh Sharma',
-    created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
-    file_url: '#',
-  },
-]
+import { createClient } from '@/utils/supabase/client'
 
 export default function HealthRecordsPage() {
-  const [records, setRecords] = useState(MOCK_HEALTH_RECORDS)
+  const [records, setRecords] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
   const [title, setTitle] = useState('')
   const [type, setType] = useState('Prescription')
   const [file, setFile] = useState<File | null>(null)
 
-  const handleUpload = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!title || !file) return
+  async function fetchHealthRecords() {
+    try {
+      setLoading(true)
+      setError(null)
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setLoading(false)
+        return
+      }
 
-    setRecords([
-      {
-        id: `hr-${Date.now()}`,
-        title,
-        type,
-        uploaded_by: 'Self Uploaded',
-        created_at: new Date().toISOString(),
-        file_url: '#',
-      },
-      ...records,
-    ])
+      const { data, error: fetchErr } = await supabase
+        .from('health_records')
+        .select('*')
+        .eq('patient_id', user.id)
+        .order('created_at', { ascending: false })
 
-    setTitle('')
-    setFile(null)
+      if (fetchErr) throw fetchErr
+      setRecords(data || [])
+    } catch (err: any) {
+      console.error('Error fetching health records:', err)
+      setError(err.message || 'Failed to load health records.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleDelete = (id: string) => {
-    setRecords(records.filter((r) => r.id !== id))
+  useEffect(() => {
+    fetchHealthRecords()
+  }, [])
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!title) return
+
+    try {
+      setSubmitting(true)
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        alert('Please log in to upload health records.')
+        return
+      }
+
+      // Record insertion in database
+      const { error: insertErr } = await (supabase.from('health_records') as any)
+        .insert({
+          patient_id: user.id,
+          title,
+          type,
+          file_url: 'health_document.pdf',
+          uploaded_by: 'Self Uploaded',
+        })
+
+      if (insertErr) throw insertErr
+
+      setTitle('')
+      setFile(null)
+      fetchHealthRecords()
+    } catch (err: any) {
+      console.error('Error uploading health record:', err)
+      alert(err.message || 'Failed to save health record.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      const supabase = createClient()
+      const { error: delErr } = await supabase
+        .from('health_records')
+        .delete()
+        .eq('id', id)
+
+      if (delErr) throw delErr
+      setRecords((prev) => prev.filter((r) => r.id !== id))
+    } catch (err: any) {
+      console.error('Error deleting record:', err)
+      alert(err.message || 'Failed to delete record.')
+    }
   }
 
   return (
@@ -102,45 +147,64 @@ export default function HealthRecordsPage() {
                 accept="image/*,.pdf"
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
                 className="w-full text-xs text-muted-foreground file:mr-2 file:rounded-lg file:border-0 file:bg-primary file:py-1.5 file:px-3 file:text-xs file:font-semibold file:text-primary-foreground"
-                required
               />
             </div>
           </div>
           <button
             type="submit"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2.5 text-xs font-semibold text-primary-foreground shadow hover:bg-primary/90 transition-colors"
+            disabled={submitting}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2.5 text-xs font-semibold text-primary-foreground shadow hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
-            <Upload className="h-4 w-4" /> Save Record to Locker
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Save Record to Locker
           </button>
         </form>
 
         {/* Health Records List */}
-        <div className="space-y-4">
-          {records.map((r) => (
-            <div key={r.id} className="flex items-center justify-between rounded-2xl border border-border bg-card p-5 shadow-sm">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary font-bold shrink-0">
-                  <FileText className="h-6 w-6" />
+        {loading ? (
+          <div className="flex flex-col items-center justify-center p-12 space-y-3 rounded-2xl border border-border bg-card">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm font-medium text-muted-foreground">Loading medical locker...</p>
+          </div>
+        ) : error ? (
+          <div className="flex items-center gap-3 p-6 rounded-2xl border border-destructive/30 bg-destructive/10 text-destructive text-sm font-semibold">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        ) : records.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-border bg-card p-12 text-center text-sm text-muted-foreground space-y-2">
+            <p>No health records uploaded yet.</p>
+            <p className="text-xs text-muted-foreground">Use the form above to upload prescriptions, lab reports, or vaccination cards.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {records.map((r) => (
+              <div key={r.id} className="flex items-center justify-between rounded-2xl border border-border bg-card p-5 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary font-bold shrink-0">
+                    <FileText className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-foreground text-sm">{r.title}</h3>
+                    <p className="text-xs text-muted-foreground">{r.type} • Uploaded by {r.uploaded_by || 'Self Uploaded'}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{formatDate(r.created_at)}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-bold text-foreground text-sm">{r.title}</h3>
-                  <p className="text-xs text-muted-foreground">{r.type} • Uploaded by {r.uploaded_by}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{formatDate(r.created_at)}</p>
-                </div>
-              </div>
 
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => handleDelete(r.id)}
-                  className="rounded p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => handleDelete(r.id)}
+                    className="rounded p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    title="Delete Record"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </PatientLayoutShell>
   )
 }
+

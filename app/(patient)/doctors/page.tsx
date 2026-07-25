@@ -1,83 +1,121 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { MobileNav } from '@/components/layout/MobileNav'
 import { DoctorCard } from '@/components/shared/DoctorCard'
 import { SearchBar } from '@/components/shared/SearchBar'
 import { FilterPanel } from '@/components/shared/FilterPanel'
-import { Stethoscope, UserX } from 'lucide-react'
-
-// Mock doctors list for dev UI demonstration
-const MOCK_DOCTORS = [
-  {
-    id: 'doc-1',
-    profile_id: 'prof-1',
-    speciality: 'General Physician',
-    experience_years: 12,
-    fee: 500,
-    bio: 'Senior General Physician specializing in preventive health care, fever management, and lifestyle disorders.',
-    qualifications: 'MBBS, MD (Internal Medicine)',
-    verified: true,
-    rating: 4.9,
-    review_count: 128,
-    created_at: new Date().toISOString(),
-    profile: {
-      full_name: 'Dr. Rajesh Sharma',
-      avatar_url: null,
-      city: 'Mumbai',
-    },
-  },
-  {
-    id: 'doc-2',
-    profile_id: 'prof-2',
-    speciality: 'Cardiologist',
-    experience_years: 18,
-    fee: 1200,
-    bio: 'Consultant Interventional Cardiologist with extensive expertise in heart health and blood pressure control.',
-    qualifications: 'MBBS, DM (Cardiology)',
-    verified: true,
-    rating: 5.0,
-    review_count: 94,
-    created_at: new Date().toISOString(),
-    profile: {
-      full_name: 'Dr. Priya Ananth',
-      avatar_url: null,
-      city: 'Bengaluru',
-    },
-  },
-  {
-    id: 'doc-3',
-    profile_id: 'prof-3',
-    speciality: 'Dermatologist',
-    experience_years: 9,
-    fee: 750,
-    bio: 'Specialist in clinical dermatology, skin rejuvenation, acne treatment, and hair care therapies.',
-    qualifications: 'MBBS, DVD, MD (Dermatology)',
-    verified: true,
-    rating: 4.8,
-    review_count: 67,
-    created_at: new Date().toISOString(),
-    profile: {
-      full_name: 'Dr. Vikram Sethi',
-      avatar_url: null,
-      city: 'Delhi NCR',
-    },
-  },
-]
+import { Stethoscope, UserX, Loader2, AlertCircle } from 'lucide-react'
+import { createClient } from '@/utils/supabase/client'
 
 export default function DoctorsPage() {
+  const [doctors, setDoctors] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
   const [search, setSearch] = useState('')
   const [selectedSpeciality, setSelectedSpeciality] = useState('')
   const [maxFee, setMaxFee] = useState(2000)
   const [minExperience, setMinExperience] = useState(0)
 
-  const filteredDoctors = MOCK_DOCTORS.filter((doc) => {
+  useEffect(() => {
+    async function fetchDoctors() {
+      try {
+        setLoading(true)
+        setError(null)
+        const supabase = createClient()
+        // 1. Fetch Doctors with profiles and availability
+        const { data: docsData, error: fetchErr } = await supabase
+          .from('doctors')
+          .select(`
+            id,
+            profile_id,
+            speciality,
+            experience_years,
+            fee,
+            bio,
+            qualifications,
+            verified,
+            created_at,
+            profiles (
+              full_name,
+              avatar_url,
+              city
+            ),
+            doctor_availability (
+              day_of_week,
+              start_time,
+              end_time
+            )
+          `)
+          .eq('verified', true)
+
+        if (fetchErr) throw fetchErr
+
+        // 2. Fetch all reviews for doctors to compute real rating & count
+        const { data: reviewsData } = await supabase
+          .from('reviews')
+          .select('target_id, rating')
+          .eq('target_type', 'doctor')
+
+        const reviewsMap = new Map<string, { sum: number; count: number }>()
+        for (const rev of (reviewsData as any[]) || []) {
+          const curr = reviewsMap.get(rev.target_id) || { sum: 0, count: 0 }
+          reviewsMap.set(rev.target_id, {
+            sum: curr.sum + rev.rating,
+            count: curr.count + 1,
+          })
+        }
+
+        const daysMap: Record<number, string> = {
+          0: 'Sun', 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat'
+        }
+        const todayDay = new Date().getDay()
+
+        const enriched = (docsData || []).map((doc: any) => {
+          const revStats = reviewsMap.get(doc.id)
+          const avgRating = revStats ? revStats.sum / revStats.count : null
+          const reviewCount = revStats ? revStats.count : 0
+
+          const availList = doc.doctor_availability || []
+          const isAvailableToday = availList.some((a: any) => a.day_of_week === todayDay)
+          const availDays = availList.map((a: any) => daysMap[a.day_of_week]).filter(Boolean).join(', ')
+
+          const availability_text = isAvailableToday
+            ? 'Available Today'
+            : availDays
+            ? `Available ${availDays}`
+            : 'By Appointment'
+
+          return {
+            ...doc,
+            rating: avgRating,
+            review_count: reviewCount,
+            availability_text,
+          }
+        })
+
+        setDoctors(enriched)
+      } catch (err: any) {
+        console.error('Error fetching doctors:', err)
+        setError(err.message || 'Failed to load doctors list.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDoctors()
+  }, [])
+
+  const filteredDoctors = doctors.filter((doc) => {
+    const fullName = doc.profiles?.full_name || ''
+    const city = doc.profiles?.city || ''
     const matchesSearch =
-      doc.profile.full_name.toLowerCase().includes(search.toLowerCase()) ||
+      fullName.toLowerCase().includes(search.toLowerCase()) ||
       doc.speciality.toLowerCase().includes(search.toLowerCase()) ||
-      (doc.profile.city && doc.profile.city.toLowerCase().includes(search.toLowerCase()))
+      city.toLowerCase().includes(search.toLowerCase())
 
     const matchesSpeciality = selectedSpeciality ? doc.speciality === selectedSpeciality : true
     const matchesFee = doc.fee <= maxFee
@@ -117,7 +155,17 @@ export default function DoctorsPage() {
           </aside>
 
           <section className="lg:col-span-3">
-            {filteredDoctors.length === 0 ? (
+            {loading ? (
+              <div className="flex flex-col items-center justify-center p-12 space-y-3 rounded-2xl border border-border bg-card">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground font-medium">Loading verified doctors...</p>
+              </div>
+            ) : error ? (
+              <div className="flex items-center gap-3 p-6 rounded-2xl border border-destructive/30 bg-destructive/10 text-destructive text-sm font-semibold">
+                <AlertCircle className="h-5 w-5 shrink-0" />
+                <span>{error}</span>
+              </div>
+            ) : filteredDoctors.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card p-12 text-center space-y-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
                   <UserX className="h-6 w-6" />
@@ -143,3 +191,4 @@ export default function DoctorsPage() {
     </div>
   )
 }
+

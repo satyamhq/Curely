@@ -15,6 +15,10 @@ export async function POST(req: Request) {
       data: { user },
     } = await supabase.auth.getUser()
 
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required to book appointments.' }, { status: 401 })
+    }
+
     // 1. Double-booking slot lock check
     const { data: existingSlot } = await supabase
       .from('appointments')
@@ -32,12 +36,10 @@ export async function POST(req: Request) {
     }
 
     // 2. Create appointment record
-    const patientId = user?.id || 'mock-patient-id'
-
     const { data: newAppointment, error } = await supabase
       .from('appointments')
       .insert({
-        patient_id: patientId,
+        patient_id: user.id,
         doctor_id: doctorId,
         slot_time: slotTime,
         status: 'confirmed',
@@ -48,16 +50,7 @@ export async function POST(req: Request) {
       .single()
 
     if (error) {
-      // Fallback response for unseeded database testing
-      return NextResponse.json({
-        id: `apt-${Date.now()}`,
-        patient_id: patientId,
-        doctor_id: doctorId,
-        slot_time: slotTime,
-        status: 'confirmed',
-        mode: mode || 'online',
-        amount: amount || 500,
-      })
+      return NextResponse.json({ error: error.message || 'Failed to create appointment in database.' }, { status: 400 })
     }
 
     return NextResponse.json(newAppointment)
@@ -69,3 +62,4 @@ export async function POST(req: Request) {
     )
   }
 }
+

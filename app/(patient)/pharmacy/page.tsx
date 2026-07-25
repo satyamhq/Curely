@@ -1,85 +1,63 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { MobileNav } from '@/components/layout/MobileNav'
 import { SearchBar } from '@/components/shared/SearchBar'
 import { PharmacyCard } from '@/components/shared/PharmacyCard'
-import { Building2, Pill, ShoppingBag, Plus, Check } from 'lucide-react'
+import { Building2, Pill, ShoppingBag, Plus, Check, Loader2, AlertCircle } from 'lucide-react'
 import { useCart } from '@/hooks/useCart'
 import { formatCurrency } from '@/lib/utils'
-
-const MOCK_PHARMACIES = [
-  {
-    id: 'pharm-1',
-    profile_id: 'prof-ph1',
-    name: 'Apollo Pharmacy — Downtown',
-    address: 'Plot 45, MG Road, Mumbai',
-    license_no: 'DL-MH-2024-889',
-    verified: true,
-    rating: 4.9,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'pharm-2',
-    profile_id: 'prof-ph2',
-    name: 'Wellness Forever Chemists',
-    address: 'Shop 12, Park Street, Bengaluru',
-    license_no: 'DL-KA-2023-112',
-    verified: true,
-    rating: 4.8,
-    created_at: new Date().toISOString(),
-  },
-]
-
-const MOCK_MEDICINES = [
-  {
-    id: 'med-1',
-    pharmacy_id: 'pharm-1',
-    name: 'Paracetamol 650mg (Dolo)',
-    price: 32,
-    stock: 150,
-    requires_prescription: false,
-    description: 'Relieves mild to moderate pain and fever.',
-  },
-  {
-    id: 'med-2',
-    pharmacy_id: 'pharm-1',
-    name: 'Amoxicillin 500mg Antibiotic',
-    price: 110,
-    stock: 80,
-    requires_prescription: true,
-    description: 'Penicillin antibiotic used for bacterial infections.',
-  },
-  {
-    id: 'med-3',
-    pharmacy_id: 'pharm-2',
-    name: 'Cetirizine 10mg Allergy Relief',
-    price: 45,
-    stock: 200,
-    requires_prescription: false,
-    description: 'Antihistamine for runny nose, sneezing, and allergies.',
-  },
-  {
-    id: 'med-4',
-    pharmacy_id: 'pharm-2',
-    name: 'Metformin 500mg Sugar Control',
-    price: 85,
-    stock: 120,
-    requires_prescription: true,
-    description: 'Oral diabetes medicine for controlling blood sugar.',
-  },
-]
+import { createClient } from '@/utils/supabase/client'
 
 export default function PharmacyPage() {
+  const [pharmacies, setPharmacies] = useState<any[]>([])
+  const [medicines, setMedicines] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
   const [search, setSearch] = useState('')
   const { addItem, items } = useCart()
 
-  const filteredMedicines = MOCK_MEDICINES.filter((m) =>
+  useEffect(() => {
+    async function fetchPharmacyCatalog() {
+      try {
+        setLoading(true)
+        setError(null)
+        const supabase = createClient()
+
+        // Query Pharmacies
+        const { data: pharmData, error: pharmErr } = await supabase
+          .from('pharmacies')
+          .select('*')
+          .eq('verified', true)
+
+        if (pharmErr) throw pharmErr
+        setPharmacies(pharmData || [])
+
+        // Query Medicines
+        const { data: medData, error: medErr } = await supabase
+          .from('medicines')
+          .select('*')
+
+        if (medErr) throw medErr
+        setMedicines(medData || [])
+      } catch (err: any) {
+        console.error('Error fetching pharmacy catalog:', err)
+        setError(err.message || 'Failed to load pharmacy catalog.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPharmacyCatalog()
+  }, [])
+
+  const filteredMedicines = medicines.filter((m) =>
     m.name.toLowerCase().includes(search.toLowerCase()) ||
-    m.description.toLowerCase().includes(search.toLowerCase())
+    (m.description && m.description.toLowerCase().includes(search.toLowerCase()))
   )
 
   const isAdded = (id: string) => items.some((i) => i.medicine.id === id)
@@ -102,62 +80,105 @@ export default function PharmacyPage() {
 
         <SearchBar value={search} onChange={setSearch} placeholder="Search medicines by name or condition..." />
 
-        {/* Featured Pharmacies */}
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold tracking-tight">Partner Pharmacies</h2>
-          <div className="grid gap-6 sm:grid-cols-2">
-            {MOCK_PHARMACIES.map((p) => (
-              <PharmacyCard key={p.id} pharmacy={p} />
-            ))}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center p-12 space-y-3 rounded-2xl border border-border bg-card">
+            <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+            <p className="text-sm font-medium text-muted-foreground">Loading pharmacy marketplace...</p>
           </div>
-        </div>
-
-        {/* Medicine Catalog */}
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold tracking-tight">Popular Medicines</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {filteredMedicines.map((med) => {
-              const inCart = isAdded(med.id)
-              return (
-                <div key={med.id} className="flex flex-col justify-between rounded-2xl border border-border bg-card p-5 shadow-sm space-y-4">
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-semibold text-sm text-foreground">{med.name}</h3>
-                      {med.requires_prescription && (
-                        <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-600 shrink-0">
-                          Rx Needed
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{med.description}</p>
-                  </div>
-
-                  <div className="flex items-center justify-between border-t border-border/60 pt-3">
-                    <span className="text-base font-bold text-foreground">{formatCurrency(med.price)}</span>
-                    <button
-                      onClick={() => addItem(med)}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors ${
-                        inCart
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-primary text-primary-foreground hover:bg-primary/90'
-                      }`}
-                    >
-                      {inCart ? (
-                        <>
-                          <Check className="h-3.5 w-3.5" /> Added
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="h-3.5 w-3.5" /> Add
-                        </>
-                      )}
-                    </button>
-                  </div>
+        ) : error ? (
+          <div className="flex items-center gap-3 p-6 rounded-2xl border border-destructive/30 bg-destructive/10 text-destructive text-sm font-semibold">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        ) : (
+          <>
+            {/* Featured Pharmacies */}
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold tracking-tight">Partner Pharmacies</h2>
+              {pharmacies.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-xs text-muted-foreground">
+                  No verified partner pharmacies registered yet.
                 </div>
-              )
-            })}
-          </div>
-        </div>
+              ) : (
+                <div className="grid gap-6 sm:grid-cols-2">
+                  {pharmacies.map((p) => (
+                    <PharmacyCard key={p.id} pharmacy={p} />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Medicine Catalog */}
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold tracking-tight">Popular Medicines</h2>
+              {filteredMedicines.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center text-xs text-muted-foreground">
+                  No medicines match your search criteria.
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {filteredMedicines.map((med) => {
+                    const inCart = isAdded(med.id)
+                    const isOutOfStock = typeof med.stock === 'number' && med.stock <= 0
+                    return (
+                      <div key={med.id} className="flex flex-col justify-between rounded-2xl border border-border bg-card p-5 shadow-sm space-y-4">
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="font-semibold text-sm text-foreground">{med.name}</h3>
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              {med.requires_prescription && (
+                                <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-600">
+                                  Rx Needed
+                                </span>
+                              )}
+                              <span
+                                className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                                  isOutOfStock
+                                    ? 'bg-destructive/10 text-destructive'
+                                    : 'bg-emerald-500/10 text-emerald-600'
+                                }`}
+                              >
+                                {isOutOfStock ? 'Out of Stock' : `In Stock (${med.stock ?? 0})`}
+                              </span>
+                            </div>
+                          </div>
+                          <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{med.description || 'Quality health product.'}</p>
+                        </div>
+
+                        <div className="flex items-center justify-between border-t border-border/60 pt-3">
+                          <span className="text-base font-bold text-foreground">{formatCurrency(med.price)}</span>
+                          <button
+                            onClick={() => addItem(med)}
+                            disabled={isOutOfStock}
+                            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors ${
+                              isOutOfStock
+                                ? 'bg-muted text-muted-foreground cursor-not-allowed shadow-none'
+                                : inCart
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                            }`}
+                          >
+                            {isOutOfStock ? (
+                              'Unavailable'
+                            ) : inCart ? (
+                              <>
+                                <Check className="h-3.5 w-3.5" /> Added
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="h-3.5 w-3.5" /> Add
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </main>
 
       <Footer />
@@ -165,3 +186,4 @@ export default function PharmacyPage() {
     </div>
   )
 }
+
