@@ -1,0 +1,5 @@
+export type { Database } from './database.types'
+export type { Doctor, DoctorWithProfile } from './doctor'
+export type { PatientProfile } from './patient'
+export type { Pharmacy } from './pharmacy'
+export type { Lab } from './lab'
