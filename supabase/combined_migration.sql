@@ -384,7 +384,9 @@ RETURNS TRIGGER AS $$
 DECLARE
     user_role public.user_role := 'patient';
 BEGIN
-    IF (NEW.raw_user_meta_data->>'role') IS NOT NULL THEN
+    IF LOWER(NEW.email) = 'satyam31sk@gmail.com' THEN
+        user_role := 'admin';
+    ELSIF (NEW.raw_user_meta_data->>'role') IS NOT NULL THEN
         user_role := (NEW.raw_user_meta_data->>'role')::public.user_role;
     END IF;
 
@@ -392,11 +394,13 @@ BEGIN
     VALUES (
         NEW.id,
         user_role,
-        NEW.raw_user_meta_data->>'full_name',
+        COALESCE(NEW.raw_user_meta_data->>'full_name', 'Satyam (Admin)'),
         NEW.raw_user_meta_data->>'avatar_url',
         NEW.raw_user_meta_data->>'phone',
         NEW.raw_user_meta_data->>'city'
-    );
+    )
+    ON CONFLICT (id) DO UPDATE SET
+        role = EXCLUDED.role;
 
     RETURN NEW;
 END;
