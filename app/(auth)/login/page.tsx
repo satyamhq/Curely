@@ -37,7 +37,11 @@ function LoginForm() {
       })
 
       if (error) {
-        setAuthError(error.message)
+        if (error.message.toLowerCase().includes('email not confirmed')) {
+          setAuthError('Email not confirmed. Please check your email inbox to verify your account, or toggle off "Confirm email" in your Supabase Dashboard under Authentication -> Providers -> Email.')
+        } else {
+          setAuthError(error.message)
+        }
         setLoading(false)
         return
       }
