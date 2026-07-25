@@ -211,6 +211,16 @@ CREATE TABLE IF NOT EXISTS public.payments (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS public.admin_actions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    admin_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    action TEXT NOT NULL,
+    target_entity TEXT NOT NULL,
+    target_id UUID,
+    details JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- 3. INDEXES FOR HIGH-PERFORMANCE QUERIES
 CREATE INDEX IF NOT EXISTS idx_doctors_speciality ON public.doctors(speciality);
 CREATE INDEX IF NOT EXISTS idx_doctors_verified ON public.doctors(verified);
@@ -224,6 +234,7 @@ CREATE INDEX IF NOT EXISTS idx_lab_bookings_patient ON public.lab_bookings(patie
 CREATE INDEX IF NOT EXISTS idx_lab_bookings_lab ON public.lab_bookings(lab_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_target ON public.reviews(target_type, target_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON public.notifications(user_id, read);
+CREATE INDEX IF NOT EXISTS idx_admin_actions_target ON public.admin_actions(target_entity, target_id);
 
 -- 4. ENABLE ROW LEVEL SECURITY (RLS) ON ALL TABLES
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -243,6 +254,7 @@ ALTER TABLE public.health_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_actions ENABLE ROW LEVEL SECURITY;
 
 -- 5. ADMIN CHECK FUNCTION & RLS POLICIES
 CREATE OR REPLACE FUNCTION public.is_admin()
@@ -308,6 +320,7 @@ DROP POLICY IF EXISTS "Users can update read status on their notifications" ON p
 
 DROP POLICY IF EXISTS "Users can view their payments" ON public.payments;
 DROP POLICY IF EXISTS "Users can create payment records" ON public.payments;
+DROP POLICY IF EXISTS "Admins can manage admin actions" ON public.admin_actions;
 
 -- Create Policies
 CREATE POLICY "Public profiles are readable by authenticated users" ON public.profiles FOR SELECT TO authenticated USING (TRUE);
@@ -362,6 +375,8 @@ CREATE POLICY "Users can update read status on their notifications" ON public.no
 
 CREATE POLICY "Users can view their payments" ON public.payments FOR SELECT TO authenticated USING (user_id = auth.uid() OR public.is_admin());
 CREATE POLICY "Users can create payment records" ON public.payments FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "Admins can manage admin actions" ON public.admin_actions FOR ALL TO authenticated USING (public.is_admin());
 
 -- 6. AUTOMATIC AUTH USER PROFILE POPULATION TRIGGER
 CREATE OR REPLACE FUNCTION public.handle_new_user()

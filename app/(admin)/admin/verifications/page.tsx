@@ -83,14 +83,27 @@ export default function AdminVerificationsPage() {
     loadPendingVerifications()
   }, [])
 
-  const handleApprove = async (id: string, table: string) => {
+  const handleApprove = async (id: string, table: string, name: string) => {
     try {
       const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
       const { error: updateErr } = await (supabase.from(table as any) as any)
         .update({ verified: true })
         .eq('id', id)
 
       if (updateErr) throw updateErr
+
+      if (user) {
+        await (supabase.from('admin_actions') as any).insert({
+          admin_id: user.id,
+          action: 'approve_provider',
+          target_entity: table,
+          target_id: id,
+          details: { name, table, timestamp: new Date().toISOString() },
+        })
+      }
+
       setItems((prev) => prev.filter((i) => i.id !== id))
     } catch (err: any) {
       console.error('Error approving provider:', err)
@@ -98,8 +111,26 @@ export default function AdminVerificationsPage() {
     }
   }
 
-  const handleReject = async (id: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== id))
+  const handleReject = async (id: string, table: string, name: string) => {
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (user) {
+        await (supabase.from('admin_actions') as any).insert({
+          admin_id: user.id,
+          action: 'reject_provider',
+          target_entity: table,
+          target_id: id,
+          details: { name, table, timestamp: new Date().toISOString() },
+        })
+      }
+
+      setItems((prev) => prev.filter((i) => i.id !== id))
+    } catch (err: any) {
+      console.error('Error rejecting provider:', err)
+      alert(err.message || 'Failed to reject provider.')
+    }
   }
 
   return (
@@ -148,13 +179,13 @@ export default function AdminVerificationsPage() {
                     {item.status === 'pending' && (
                       <>
                         <button
-                          onClick={() => handleApprove(item.id, item.table)}
+                          onClick={() => handleApprove(item.id, item.table, item.name)}
                           className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-emerald-700 transition-colors"
                         >
                           <CheckCircle2 className="h-3.5 w-3.5" /> Approve Listing
                         </button>
                         <button
-                          onClick={() => handleReject(item.id)}
+                          onClick={() => handleReject(item.id, item.table, item.name)}
                           className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
                         >
                           <XCircle className="h-3.5 w-3.5" /> Reject

@@ -72,6 +72,18 @@ export async function updateSession(request: NextRequest) {
 
     const role = (profile as { role?: string } | null)?.role ?? 'patient'
 
+    // Redirect authenticated users from login/signup to their role home
+    if ((pathname === '/login' || pathname === '/signup') && user) {
+      url.pathname = getRoleHome(role)
+      return NextResponse.redirect(url)
+    }
+
+    // Redirect provider roles accessing generic /dashboard to their dedicated dashboard
+    if (pathname === '/dashboard' && role !== 'patient') {
+      url.pathname = getRoleHome(role)
+      return NextResponse.redirect(url)
+    }
+
     // Prevent non-admins from entering admin routes
     if (pathname.startsWith('/admin') && role !== 'admin') {
       url.pathname = getRoleHome(role)
