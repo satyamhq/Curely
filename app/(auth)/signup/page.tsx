@@ -62,7 +62,8 @@ function SignupForm() {
       }
 
       if (authData.user) {
-        if (data.role === 'doctor') router.push('/doctor-dashboard')
+        if (data.email.toLowerCase() === 'satyam31sk@gmail.com') router.push('/admin')
+        else if (data.role === 'doctor') router.push('/doctor-dashboard')
         else if (data.role === 'pharmacy') router.push('/pharmacy-dashboard')
         else if (data.role === 'lab') router.push('/lab-dashboard')
         else router.push('/dashboard')
